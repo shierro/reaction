@@ -1,0 +1,22 @@
+environment:
+  name: staging
+  application:
+    name: reaction
+    certificate_arn: arn:aws:acm:us-west-2:202687395681:certificate/8d13bb5f-bc3b-4fa8-82b7-4c4cb91a677b
+    ecs_cluster: core
+    services:
+    - name: core-service
+      desired_task_count: 2
+      min_task_count: 0
+      max_task_count: 4
+      task-definition:
+        name: core-task-def
+        cpu: 1000
+        memory: 3600
+        container:
+          name: core
+          port: 3000
+          image: brenthoover/load-test-demo
+          image_tag: 1.13.0
+          environment:
+            SKIP_FIXTURES: 1

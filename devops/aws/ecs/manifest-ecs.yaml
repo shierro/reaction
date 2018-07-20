@@ -1,0 +1,7 @@
+environment:
+  name: staging
+  ecs:
+    clusters:
+    - name: core
+      cluster_size: 2
+      instance_type: t2.medium
