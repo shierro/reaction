@@ -6,7 +6,7 @@ environment:
     ecs_cluster: core
     services:
     - name: core-service
-      desired_task_count: 2
+      desired_task_count: 0
       min_task_count: 0
       max_task_count: 4
       task-definition:
@@ -16,7 +16,7 @@ environment:
         container:
           name: core
           port: 3000
-          image: brenthoover/load-test-demo
-          image_tag: 1.13.0
+          image: reactioncommerce/reaction
+          image_tag: release-1.14.0
           environment:
             SKIP_FIXTURES: 1

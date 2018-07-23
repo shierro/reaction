@@ -4,4 +4,4 @@ environment:
     clusters:
     - name: core
       cluster_size: 2
-      instance_type: t2.medium
+      instance_type: m5.large
