@@ -19,14 +19,13 @@ Parameters:
       Description: Environment name
       Type: String
 
-    CertificateArn:
-      Description: ARN for pre-created SSL certificate for names in RootDomain
+    ServiceName:
+      Description: Service name
       Type: String
 
-    DesiredTaskCount: 
-      Description: How many instances of this task should we run across our cluster?
-      Type: Number
-      Default: 2
+    TaskDefinitionName:
+      Description: Task definition name
+      Type: String
 
     TaskMemory: 
       Description: Memory units to allocate for the ECS task
@@ -38,28 +37,10 @@ Parameters:
       Type: Number
       Default: 1000
 
-    MinTaskCount:
-      Description: Minimum number of instances of this task we can run across our cluster
-      Type: Number
-      Default: 0
-    ContainerImage:
-      Description: Docker image to be used for the app container
-      Type: String
-
     DesiredTaskCount: 
       Description: How many instances of this task should we run across our cluster?
       Type: Number
       Default: 2
-
-    TaskMemory: 
-      Description: Memory units to allocate for the ECS task
-      Type: Number
-      Default: 3600
-
-    TaskCpu: 
-      Description: CPU units to allocate for the ECS task
-      Type: Number
-      Default: 1000
 
     MinTaskCount:
       Description: Minimum number of instances of this task we can run across our cluster
@@ -70,11 +51,6 @@ Parameters:
       Description: Maximum number of instances of this task we can run across our cluster
       Type: Number
       Default: 3
-
-    ALBListenerPath: 
-      Description: The path to register with the Application Load Balancer
-      Type: String
-      Default: /
 
     ContainerImage:
       Description: Docker image to be used for the app container
@@ -92,6 +68,26 @@ Parameters:
       Description: Container port
       Type: Number
       Default: 3000
+
+    CertificateArn:
+      Description: ARN for pre-created SSL certificate for names in RootDomain
+      Type: String
+
+    ALBListenerPort:
+      Description: The port to register with the Application Load Balancer
+      Type: String
+
+    ALBListenerPath: 
+      Description: The path to register with the Application Load Balancer
+      Type: String
+
+    ALBListenerRulePriority:
+      Description: The path to register with the Application Load Balancer
+      Type: String
+
+    ALBHealthCheckPath: 
+      Description: The health check path to register with the Application Load Balancer Target Group
+      Type: String
 
     ReactionAuth:
       Description: Auth for admin user
@@ -157,6 +153,7 @@ Resources:
         Type: AWS::ECS::Service
         DependsOn: ListenerRule
         Properties: 
+            ServiceName: !Sub "${EnvName}-${AppName}-${ServiceName}"
             Cluster:
               Fn::ImportValue:
                 !Sub "${CloudFormationECSStackName}-ECSCluster" 
@@ -171,7 +168,7 @@ Resources:
     TaskDefinition:
         Type: AWS::ECS::TaskDefinition
         Properties:
-            Family: reaction-service
+            Family: !Ref TaskDefinitionName
             Memory: !Ref TaskMemory
             Cpu: !Ref TaskCpu
             ContainerDefinitions:
@@ -215,6 +212,7 @@ Resources:
     TargetGroup:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
         Properties:
+            Name: !Sub "${EnvName}-${ServiceName}"
             VpcId:
               Fn::ImportValue:
                 !Sub "${CloudFormationVPCStackName}-VpcId" 
@@ -223,7 +221,7 @@ Resources:
             Matcher: 
                 HttpCode: 200-299
             HealthCheckIntervalSeconds: 30
-            HealthCheckPath: /health
+            HealthCheckPath: !Ref ALBHealthCheckPath
             HealthCheckProtocol: HTTP
             HealthCheckTimeoutSeconds: 20
             HealthyThresholdCount: 2
@@ -235,7 +233,7 @@ Resources:
             LoadBalancerArn:
               Fn::ImportValue:
                 !Sub "${CloudFormationECSStackName}-LoadBalancerArn" 
-            Port: 80
+            Port: !Ref ALBListenerPort
             Protocol: HTTP
             DefaultActions:
                 - Type: forward
@@ -261,7 +259,7 @@ Resources:
             ListenerArn:
               Fn::ImportValue:
                 !Sub "${CloudFormationECSStackName}-ListenerArn"
-            Priority: 1
+            Priority: !Ref ALBListenerRulePriority
             Conditions:
                 - Field: path-pattern
                   Values: 

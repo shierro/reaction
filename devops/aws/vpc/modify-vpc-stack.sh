@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Set AWS_PROFILE environment variable if desired.
 
+source "../../common.sh"
+
 COMMAND=$1
 if [[ -z "${COMMAND}" ]] && [[ "${COMMAND}" != "create" ]] && [[ "${COMMAND}" != "update" ]]; then
     echo COMMAND=$COMMAND
@@ -10,12 +12,6 @@ fi
 
 AWS_CLI_RUN_CMD="${COMMAND}-stack"
 AWS_CLI_WAIT_CMD="stack-${COMMAND}-complete"
-
-function join_strings {
-    local IFS="$1";
-    shift;
-    echo "$*";
-}
 
 MANIFEST_FILE="manifest-vpc.yaml"
 

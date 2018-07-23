@@ -1,0 +1,233 @@
+Description: >
+    This template deploys the Reaction Commerce services in an existing ECS cluster.
+
+Parameters: 
+
+    CloudFormationVPCStackName:
+      Description: Name of an existing CloudFormation stack used to create the VPC
+      Type: String
+
+    CloudFormationECSStackName:
+      Description: Name of an existing CloudFormation stack used to create the ECS cluster
+      Type: String
+
+    AppName:
+      Description: Application name
+      Type: String
+
+    EnvName:
+      Description: Environment name
+      Type: String
+
+    ServiceName:
+      Description: Service name
+      Type: String
+
+    TaskDefinitionName:
+      Description: Task definition name
+      Type: String
+
+    TaskMemory: 
+      Description: Memory units to allocate for the ECS task
+      Type: Number
+      Default: 3600
+
+    TaskCpu: 
+      Description: CPU units to allocate for the ECS task
+      Type: Number
+      Default: 1000
+
+    MinTaskCount:
+      Description: Minimum number of instances of this task we can run across our cluster
+      Type: Number
+      Default: 0
+
+    DesiredTaskCount: 
+      Description: How many instances of this task should we run across our cluster?
+      Type: Number
+      Default: 2
+
+    MaxTaskCount:
+      Description: Maximum number of instances of this task we can run across our cluster
+      Type: Number
+      Default: 3
+
+    CertificateArn:
+      Description: ARN for pre-created SSL certificate for names in RootDomain
+      Type: String
+
+    ALBListenerPort:
+      Description: The port to register with the Application Load Balancer
+      Type: String
+
+    ALBListenerPath:
+      Description: The path to register with the Application Load Balancer
+      Type: String
+
+    ALBListenerRulePriority:
+      Description: The path to register with the Application Load Balancer
+      Type: String
+
+    ALBHealthCheckPath:
+      Description: The health check path to register with the Application Load Balancer Target Group
+      Type: String
+
+    ContainerImage:
+      Description: Docker image to be used for the app container
+      Type: String
+
+    ContainerImageTag:
+      Description: Tag of the Docker image to be used for the app container
+      Type: String
+
+    ContainerName:
+      Description: Container name
+      Type: String
+
+    ContainerPort:
+      Description: Container port
+      Type: Number
+      Default: 3000
+
+Resources:
+
+    Service: 
+        Type: AWS::ECS::Service
+        DependsOn: ListenerRule
+        Properties: 
+            ServiceName: !Sub "${EnvName}-${AppName}-${ServiceName}"
+            Cluster:
+              Fn::ImportValue:
+                !Sub "${CloudFormationECSStackName}-ECSCluster" 
+            Role: !Ref ServiceRole
+            DesiredCount: !Ref DesiredTaskCount
+            TaskDefinition: !Ref TaskDefinition
+            LoadBalancers: 
+                - ContainerName: !Ref ContainerName
+                  ContainerPort: !Ref ContainerPort
+                  TargetGroupArn: !Ref TargetGroup
+
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: !Ref TaskDefinitionName
+            Memory: !Ref TaskMemory
+            Cpu: !Ref TaskCpu
+            ContainerDefinitions:
+                - Name: !Ref ContainerName
+                  Essential: true
+                  Image: !Sub "${ContainerImage}:${ContainerImageTag}"
+                  PortMappings:
+                    - ContainerPort: !Ref ContainerPort
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref AWS::StackName
+                        awslogs-region: !Ref AWS::Region
+
+    CloudWatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties: 
+            LogGroupName: !Ref AWS::StackName
+            RetentionInDays: 365  
+
+    TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: !Sub "${EnvName}-${ServiceName}"
+            VpcId:
+              Fn::ImportValue:
+                !Sub "${CloudFormationVPCStackName}-VpcId" 
+            Port: !Ref ContainerPort
+            Protocol: HTTP
+            Matcher: 
+                HttpCode: 200-299
+            HealthCheckIntervalSeconds: 30
+            HealthCheckPath: !Ref ALBHealthCheckPath
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 20
+            HealthyThresholdCount: 2
+            UnhealthyThresholdCount: 5
+
+    LoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn:
+              Fn::ImportValue:
+                !Sub "${CloudFormationECSStackName}-LoadBalancerArn" 
+            Port: !Ref ALBListenerPort
+            Protocol: HTTP
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref TargetGroup
+
+    
+    ListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            ListenerArn:
+              Fn::ImportValue:
+                !Sub "${CloudFormationECSStackName}-ListenerArn"
+            Priority: !Ref ALBListenerRulePriority
+            Conditions:
+                - Field: path-pattern
+                  Values: 
+                    - !Ref ALBListenerPath
+            Actions:
+                - TargetGroupArn: !Ref TargetGroup
+                  Type: forward
+
+#    DNSRecord:
+#        Type: AWS::Route53::RecordSetGroup
+#        Properties:
+#          HostedZoneName: !Ref RootDomain
+#          Comment: Zone apex alias targeted to LoadBalancer.
+#          RecordSets:
+#          - Name: !Sub "${AppName}-${EnvName}.${RootDomain}."
+#            Type: A
+#            AliasTarget:
+#              HostedZoneId:
+#                Fn::ImportValue:
+#                  !Sub "${CloudFormationECSStackName}-HostedZoneId" 
+#              DNSName:
+#                Fn::ImportValue:
+#                  !Sub "${CloudFormationECSStackName}-LoadBalancerUrl" 
+
+
+    # This IAM Role grants the service access to register/unregister with the 
+    # Application Load Balancer (ALB). It is based on the default documented here:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_IAM_role.html
+    ServiceRole: 
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub ecs-service-${AWS::StackName}
+            Path: /
+            AssumeRolePolicyDocument: |
+                {
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": { "Service": [ "ecs.amazonaws.com" ]},
+                        "Action": [ "sts:AssumeRole" ]
+                    }]
+                }
+            Policies:
+                - PolicyName: !Sub ecs-service-${AWS::StackName}
+                  PolicyDocument:
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [{
+                                "Effect": "Allow",
+                                "Action": [
+                                    "ec2:AuthorizeSecurityGroupIngress",
+                                    "ec2:Describe*",
+                                    "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                                    "elasticloadbalancing:Describe*",
+                                    "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                                    "elasticloadbalancing:DeregisterTargets",
+                                    "elasticloadbalancing:DescribeTargetGroups",
+                                    "elasticloadbalancing:DescribeTargetHealth",
+                                    "elasticloadbalancing:RegisterTargets"
+                                ],
+                                "Resource": "*"
+                        }]
+                    }
