@@ -1,0 +1,21 @@
+service:
+  name: core-service
+  environments:
+    staging:
+      certificate_arn: arn:aws:acm:us-west-2:202687395681:certificate/8d13bb5f-bc3b-4fa8-82b7-4c4cb91a677b
+      desired_task_count: 1
+      min_task_count: 0
+      max_task_count: 4
+      alb_listener_port: 80
+      alb_listener_path: /
+      alb_listener_rule_priority: 1
+      alb_health_check_path: /health
+      task-definition:
+        name: core-task-def
+        cpu: 1000
+        memory: 3600
+        container:
+          name: core
+          port: 3000
+          image: reactioncommerce/reaction
+          image_tag: release-1.13.0
